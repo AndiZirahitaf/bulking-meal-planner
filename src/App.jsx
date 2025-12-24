@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import Header from "./components/Header";
 import MenuLibrary from "./components/MenuLibrary";
 import ScheduleGrid from "./components/ScheduleGrid";
+import SelectMenuPopup from "./components/SelectMenuPopup";
 import MenuFormPopup from "./components/MenuFormPopup";
 import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
 
@@ -15,7 +16,8 @@ export default function App() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [ingredientDatabase, setIngredientDatabase] =
     useState(DEFAULT_INGREDIENTS);
-  const [showCellMenuPopup, setShowCellMenuPopup] = useState(false);
+  const [showSelectMenuPopup, setShowSelectMenuPopup] = useState(false);
+  const [showCreateMenuPopup, setShowCreateMenuPopup] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
 
   const dates = (() => {
@@ -97,10 +99,37 @@ export default function App() {
 
   const handleCellClick = (date, mealType) => {
     setSelectedCell({ date, mealType });
-    setShowCellMenuPopup(true);
+    setShowSelectMenuPopup(true);
   };
 
-  const handleAddMenuToCell = (cardData) => {
+  const handleAddMenuToCell = (card) => {
+    if (!selectedCell) return;
+
+    const newSchedule = { ...schedule };
+    if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
+    if (!newSchedule[selectedCell.date][selectedCell.mealType])
+      newSchedule[selectedCell.date][selectedCell.mealType] = [];
+
+    // Check if card already exists in this cell
+    const exists = newSchedule[selectedCell.date][selectedCell.mealType].find(
+      (c) => c.id === card.id
+    );
+
+    if (!exists) {
+      newSchedule[selectedCell.date][selectedCell.mealType].push(card);
+    }
+
+    setSchedule(newSchedule);
+    setShowSelectMenuPopup(false);
+    setSelectedCell(null);
+  };
+
+  const handleCreateNewFromCell = () => {
+    setShowSelectMenuPopup(false);
+    setShowCreateMenuPopup(true);
+  };
+
+  const handleSaveNewMenuFromCell = (cardData) => {
     const calories = calculateCardCalories(cardData.ingredients);
     const newCard = {
       id: Date.now(),
@@ -113,15 +142,17 @@ export default function App() {
     // Add to food cards library
     setFoodCards([...foodCards, newCard]);
 
-    // Add to schedule
-    const newSchedule = { ...schedule };
-    if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
-    if (!newSchedule[selectedCell.date][selectedCell.mealType])
-      newSchedule[selectedCell.date][selectedCell.mealType] = [];
-    newSchedule[selectedCell.date][selectedCell.mealType].push(newCard);
+    // Add to schedule if cell is selected
+    if (selectedCell) {
+      const newSchedule = { ...schedule };
+      if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
+      if (!newSchedule[selectedCell.date][selectedCell.mealType])
+        newSchedule[selectedCell.date][selectedCell.mealType] = [];
+      newSchedule[selectedCell.date][selectedCell.mealType].push(newCard);
+      setSchedule(newSchedule);
+    }
 
-    setSchedule(newSchedule);
-    setShowCellMenuPopup(false);
+    setShowCreateMenuPopup(false);
     setSelectedCell(null);
   };
 
@@ -167,13 +198,26 @@ export default function App() {
           />
         )}
 
-        {showCellMenuPopup && (
+        {showSelectMenuPopup && (
+          <SelectMenuPopup
+            foodCards={foodCards}
+            selectedCell={selectedCell}
+            onAddToSchedule={handleAddMenuToCell}
+            onClose={() => {
+              setShowSelectMenuPopup(false);
+              setSelectedCell(null);
+            }}
+            onCreateNew={handleCreateNewFromCell}
+          />
+        )}
+
+        {showCreateMenuPopup && (
           <MenuFormPopup
             editingCard={null}
             ingredientDatabase={ingredientDatabase}
-            onSave={handleAddMenuToCell}
+            onSave={handleSaveNewMenuFromCell}
             onClose={() => {
-              setShowCellMenuPopup(false);
+              setShowCreateMenuPopup(false);
               setSelectedCell(null);
             }}
           />
