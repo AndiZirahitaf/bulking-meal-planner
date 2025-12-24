@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { X, Plus, Trash2 } from "lucide-react";
+import * as db from "../databaseService";
 
 export default function IngredientDatabasePopup({
   ingredientDatabase,
@@ -12,8 +13,9 @@ export default function IngredientDatabasePopup({
     unit: "",
   });
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const addIngredient = () => {
+  const addIngredient = async () => {
     if (!newIngredient.name || !newIngredient.calories || !newIngredient.unit) {
       setError("Semua field harus diisi");
       return;
@@ -24,23 +26,54 @@ export default function IngredientDatabasePopup({
       return;
     }
 
-    setIngredientDatabase({
-      ...ingredientDatabase,
-      [newIngredient.name.toLowerCase()]: {
-        calories: parseFloat(newIngredient.calories),
-        unit: newIngredient.unit,
-      },
-    });
+    try {
+      setLoading(true);
 
-    setNewIngredient({ name: "", calories: "", unit: "" });
-    setError("");
+      // Add to database
+      await db.addIngredient(
+        newIngredient.name,
+        newIngredient.calories,
+        newIngredient.unit
+      );
+
+      // Update local state
+      setIngredientDatabase({
+        ...ingredientDatabase,
+        [newIngredient.name.toLowerCase()]: {
+          calories: parseFloat(newIngredient.calories),
+          unit: newIngredient.unit,
+        },
+      });
+
+      setNewIngredient({ name: "", calories: "", unit: "" });
+      setError("");
+      setLoading(false);
+    } catch (error) {
+      console.error("Error adding ingredient:", error);
+      setError("Gagal menambahkan bahan. Silakan coba lagi.");
+      setLoading(false);
+    }
   };
 
-  const deleteIngredient = (name) => {
+  const deleteIngredient = async (name) => {
     if (confirm(`Yakin ingin menghapus bahan "${name}"?`)) {
-      const updated = { ...ingredientDatabase };
-      delete updated[name];
-      setIngredientDatabase(updated);
+      try {
+        setLoading(true);
+
+        // Delete from database
+        await db.deleteIngredient(name);
+
+        // Update local state
+        const updated = { ...ingredientDatabase };
+        delete updated[name];
+        setIngredientDatabase(updated);
+
+        setLoading(false);
+      } catch (error) {
+        console.error("Error deleting ingredient:", error);
+        alert("Gagal menghapus bahan. Silakan coba lagi.");
+        setLoading(false);
+      }
     }
   };
 
@@ -83,6 +116,7 @@ export default function IngredientDatabasePopup({
                     setNewIngredient({ ...newIngredient, name: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -101,6 +135,7 @@ export default function IngredientDatabasePopup({
                     })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
               <div>
@@ -115,16 +150,18 @@ export default function IngredientDatabasePopup({
                     setNewIngredient({ ...newIngredient, unit: e.target.value })
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                  disabled={loading}
                 />
               </div>
             </div>
 
             <button
               onClick={addIngredient}
-              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600"
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
               <Plus size={18} />
-              Tambah Bahan
+              {loading ? "Menambahkan..." : "Tambah Bahan"}
             </button>
           </div>
 
@@ -149,7 +186,8 @@ export default function IngredientDatabasePopup({
                     </div>
                     <button
                       onClick={() => deleteIngredient(name)}
-                      className="p-2 bg-red-500 text-white rounded hover:bg-red-600"
+                      disabled={loading}
+                      className="p-2 bg-red-500 text-white rounded hover:bg-red-600 disabled:bg-gray-400 disabled:cursor-not-allowed"
                     >
                       <Trash2 size={16} />
                     </button>

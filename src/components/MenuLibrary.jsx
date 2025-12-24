@@ -4,6 +4,7 @@ import FoodCard from "./FoodCard";
 import MenuFormPopup from "./MenuFormPopup";
 import IngredientDatabasePopup from "./IngredientDatabasePopup";
 import { MEAL_TYPES } from "../constants";
+import * as db from "../databaseService";
 
 export default function MenuLibrary({
   foodCards,
@@ -21,68 +22,70 @@ export default function MenuLibrary({
   const [showIngredientDb, setShowIngredientDb] = useState(false);
   const [editingCard, setEditingCard] = useState(null);
 
-  const handleSaveCard = (cardData) => {
+  const handleSaveCard = async (cardData) => {
     const calories = calculateCardCalories(cardData.ingredients);
 
-    if (editingCard) {
-      // Check if categories have changed
-      const oldCategories = editingCard.categories || [];
-      const newCategories = cardData.categories || [];
+    try {
+      if (editingCard) {
+        // Check if categories have changed
+        const oldCategories = editingCard.categories || [];
+        const newCategories = cardData.categories || [];
 
-      const removedCategories = oldCategories.filter(
-        (cat) => !newCategories.includes(cat)
-      );
+        const removedCategories = oldCategories.filter(
+          (cat) => !newCategories.includes(cat)
+        );
 
-      if (removedCategories.length > 0) {
-        // Check if this menu exists in schedule for the removed categories
-        const affectedLocations = [];
+        if (removedCategories.length > 0) {
+          const confirmMessage =
+            `Kategori berikut akan dihapus: ${removedCategories.join(
+              ", "
+            )}.\n\n` +
+            `Menu "${
+              editingCard.name
+            }" akan dihapus dari semua jadwal dengan waktu makan: ${removedCategories.join(
+              ", "
+            )}.\n\n` +
+            `Apakah Anda yakin ingin melanjutkan?`;
 
-        // Scan the schedule - this requires passing schedule as prop
-        // We'll need to update this component to receive schedule
-        // For now, show a warning
-        const confirmMessage =
-          `Kategori berikut akan dihapus: ${removedCategories.join(
-            ", "
-          )}.\n\n` +
-          `Menu "${
-            editingCard.name
-          }" akan dihapus dari semua jadwal dengan waktu makan: ${removedCategories.join(
-            ", "
-          )}.\n\n` +
-          `Apakah Anda yakin ingin melanjutkan?`;
-
-        if (!confirm(confirmMessage)) {
-          return; // Cancel the update
+          if (!confirm(confirmMessage)) {
+            return;
+          }
         }
+
+        // Update in database
+        const updatedCard = await db.updateFoodCard(editingCard.id, {
+          name: cardData.name,
+          categories: cardData.categories,
+          ingredients: cardData.ingredients,
+          calories,
+        });
+
+        // Update local state
+        setFoodCards(
+          foodCards.map((c) => (c.id === editingCard.id ? updatedCard : c))
+        );
+
+        // Update schedule and remove from incompatible meal types
+        updateScheduleCard(updatedCard, removedCategories);
+      } else {
+        // Add to database
+        const newCard = await db.addFoodCard({
+          name: cardData.name,
+          categories: cardData.categories,
+          ingredients: cardData.ingredients,
+          calories,
+        });
+
+        // Update local state
+        setFoodCards([...foodCards, newCard]);
       }
 
-      const updatedCard = {
-        ...editingCard,
-        name: cardData.name,
-        categories: cardData.categories,
-        ingredients: cardData.ingredients,
-        calories,
-      };
-
-      setFoodCards(
-        foodCards.map((c) => (c.id === editingCard.id ? updatedCard : c))
-      );
-
-      // Update schedule and remove from incompatible meal types
-      updateScheduleCard(updatedCard, removedCategories);
-    } else {
-      const newCard = {
-        id: Date.now(),
-        name: cardData.name,
-        categories: cardData.categories,
-        ingredients: cardData.ingredients,
-        calories,
-      };
-      setFoodCards([...foodCards, newCard]);
+      setShowForm(false);
+      setEditingCard(null);
+    } catch (error) {
+      console.error("Error saving card:", error);
+      alert("Gagal menyimpan menu. Silakan coba lagi.");
     }
-
-    setShowForm(false);
-    setEditingCard(null);
   };
 
   const handleEditCard = (card) => {
@@ -90,18 +93,29 @@ export default function MenuLibrary({
     setShowForm(true);
   };
 
-  const handleDeleteCard = (cardId) => {
-    if (confirm("Yakin ingin menghapus menu ini?")) {
-      setFoodCards(foodCards.filter((c) => c.id !== cardId));
+  const handleDeleteCard = async (cardId) => {
+    if (
+      confirm(
+        "Yakin ingin menghapus menu ini? Menu akan dihapus dari semua jadwal."
+      )
+    ) {
+      try {
+        // Delete from database (cascade will handle schedules)
+        await db.deleteFoodCard(cardId);
+
+        // Update local state
+        setFoodCards(foodCards.filter((c) => c.id !== cardId));
+      } catch (error) {
+        console.error("Error deleting card:", error);
+        alert("Gagal menghapus menu. Silakan coba lagi.");
+      }
     }
   };
 
   const filteredCards = foodCards.filter((card) => {
-    // Filter by category
     const categoryMatch =
       activeCategory === "All" || card.categories.includes(activeCategory);
 
-    // Filter by search query
     const searchMatch =
       searchQuery === "" ||
       card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -144,10 +158,8 @@ export default function MenuLibrary({
         </div>
       </div>
 
-      {/* Search and Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
-        {/* Search Bar */}
-        <div className="relative md:col-span-3">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div className="relative">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
             size={20}
@@ -161,8 +173,7 @@ export default function MenuLibrary({
           />
         </div>
 
-        {/* Category Filter Dropdown */}
-        <div className="md:col-span-1">
+        <div>
           <select
             value={activeCategory}
             onChange={(e) => setActiveCategory(e.target.value)}
@@ -180,14 +191,12 @@ export default function MenuLibrary({
         </div>
       </div>
 
-      {/* Results Info */}
       <div className="mb-3 text-sm text-gray-600">
         Menampilkan {filteredCards.length} menu
         {searchQuery && ` untuk "${searchQuery}"`}
         {activeCategory !== "All" && ` di kategori ${activeCategory}`}
       </div>
 
-      {/* Food Cards */}
       <div className="flex gap-4 overflow-x-auto pb-4">
         {filteredCards.length === 0 ? (
           <div className="text-gray-500 text-center w-full py-8">

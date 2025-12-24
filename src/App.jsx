@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import Header from "./components/Header";
 import MenuLibrary from "./components/MenuLibrary";
 import ScheduleGrid from "./components/ScheduleGrid";
 import SelectMenuPopup from "./components/SelectMenuPopup";
 import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
+import * as db from "./databaseService";
 
 export default function App() {
   const [startDate, setStartDate] = useState("2024-12-26");
@@ -17,6 +18,51 @@ export default function App() {
     useState(DEFAULT_INGREDIENTS);
   const [showSelectMenuPopup, setShowSelectMenuPopup] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  // Load data on mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  // Load schedule when date range changes
+  useEffect(() => {
+    if (startDate && endDate) {
+      loadSchedule();
+    }
+  }, [startDate, endDate]);
+
+  const loadInitialData = async () => {
+    try {
+      setLoading(true);
+
+      // Load ingredients
+      const ingredients = await db.getAllIngredients();
+      setIngredientDatabase(ingredients);
+
+      // Load food cards
+      const cards = await db.getAllFoodCards();
+      setFoodCards(cards);
+
+      // Load schedule
+      await loadSchedule();
+
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading data:", error);
+      alert("Gagal memuat data. Silakan refresh halaman.");
+      setLoading(false);
+    }
+  };
+
+  const loadSchedule = async () => {
+    try {
+      const scheduleData = await db.getSchedulesByDateRange(startDate, endDate);
+      setSchedule(scheduleData);
+    } catch (error) {
+      console.error("Error loading schedule:", error);
+    }
+  };
 
   const dates = (() => {
     const start = new Date(startDate);
@@ -46,37 +92,54 @@ export default function App() {
     e.preventDefault();
   };
 
-  const handleDrop = (date, mealType) => {
+  const handleDrop = async (date, mealType) => {
     if (draggedCard) {
-      // Check if the card has the category matching the meal type
       if (!draggedCard.categories.includes(mealType)) {
         alert(`Menu "${draggedCard.name}" tidak memiliki kategori ${mealType}`);
         setDraggedCard(null);
         return;
       }
 
-      const newSchedule = { ...schedule };
-      if (!newSchedule[date]) newSchedule[date] = {};
-      if (!newSchedule[date][mealType]) newSchedule[date][mealType] = [];
+      try {
+        // Add to database
+        await db.addToSchedule(date, mealType, draggedCard.id);
 
-      const exists = newSchedule[date][mealType].find(
-        (c) => c.id === draggedCard.id
-      );
-      if (!exists) {
-        newSchedule[date][mealType].push(draggedCard);
+        // Update local state
+        const newSchedule = { ...schedule };
+        if (!newSchedule[date]) newSchedule[date] = {};
+        if (!newSchedule[date][mealType]) newSchedule[date][mealType] = [];
+
+        const exists = newSchedule[date][mealType].find(
+          (c) => c.id === draggedCard.id
+        );
+        if (!exists) {
+          newSchedule[date][mealType].push(draggedCard);
+        }
+
+        setSchedule(newSchedule);
+        setDraggedCard(null);
+      } catch (error) {
+        console.error("Error adding to schedule:", error);
+        alert("Gagal menambahkan ke jadwal");
       }
-
-      setSchedule(newSchedule);
-      setDraggedCard(null);
     }
   };
 
-  const removeFromSchedule = (date, mealType, cardId) => {
-    const newSchedule = { ...schedule };
-    newSchedule[date][mealType] = newSchedule[date][mealType].filter(
-      (c) => c.id !== cardId
-    );
-    setSchedule(newSchedule);
+  const removeFromSchedule = async (date, mealType, cardId) => {
+    try {
+      // Remove from database
+      await db.removeFromSchedule(date, mealType, cardId);
+
+      // Update local state
+      const newSchedule = { ...schedule };
+      newSchedule[date][mealType] = newSchedule[date][mealType].filter(
+        (c) => c.id !== cardId
+      );
+      setSchedule(newSchedule);
+    } catch (error) {
+      console.error("Error removing from schedule:", error);
+      alert("Gagal menghapus dari jadwal");
+    }
   };
 
   const getDailyCalories = (date) => {
@@ -90,24 +153,32 @@ export default function App() {
     return total;
   };
 
-  const updateScheduleCard = (updatedCard, removedCategories = []) => {
-    const newSchedule = { ...schedule };
-    Object.keys(newSchedule).forEach((date) => {
-      Object.keys(newSchedule[date]).forEach((mealType) => {
-        // If this mealType is in removedCategories, remove the card
-        if (removedCategories.includes(mealType)) {
-          newSchedule[date][mealType] = newSchedule[date][mealType].filter(
-            (c) => c.id !== updatedCard.id
-          );
-        } else {
-          // Otherwise, update the card if it exists
-          newSchedule[date][mealType] = newSchedule[date][mealType].map((c) =>
-            c.id === updatedCard.id ? updatedCard : c
-          );
-        }
+  const updateScheduleCard = async (updatedCard, removedCategories = []) => {
+    try {
+      // If categories were removed, remove from those meal types in schedule
+      if (removedCategories.length > 0) {
+        await db.removeCardFromAllSchedules(updatedCard.id, removedCategories);
+      }
+
+      // Update local state
+      const newSchedule = { ...schedule };
+      Object.keys(newSchedule).forEach((date) => {
+        Object.keys(newSchedule[date]).forEach((mealType) => {
+          if (removedCategories.includes(mealType)) {
+            newSchedule[date][mealType] = newSchedule[date][mealType].filter(
+              (c) => c.id !== updatedCard.id
+            );
+          } else {
+            newSchedule[date][mealType] = newSchedule[date][mealType].map((c) =>
+              c.id === updatedCard.id ? updatedCard : c
+            );
+          }
+        });
       });
-    });
-    setSchedule(newSchedule);
+      setSchedule(newSchedule);
+    } catch (error) {
+      console.error("Error updating schedule:", error);
+    }
   };
 
   const handleCellClick = (date, mealType) => {
@@ -115,27 +186,46 @@ export default function App() {
     setShowSelectMenuPopup(true);
   };
 
-  const handleAddMenuToCell = (card) => {
+  const handleAddMenuToCell = async (card) => {
     if (!selectedCell) return;
 
-    const newSchedule = { ...schedule };
-    if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
-    if (!newSchedule[selectedCell.date][selectedCell.mealType])
-      newSchedule[selectedCell.date][selectedCell.mealType] = [];
+    try {
+      // Add to database
+      await db.addToSchedule(selectedCell.date, selectedCell.mealType, card.id);
 
-    // Check if card already exists in this cell
-    const exists = newSchedule[selectedCell.date][selectedCell.mealType].find(
-      (c) => c.id === card.id
-    );
+      // Update local state
+      const newSchedule = { ...schedule };
+      if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
+      if (!newSchedule[selectedCell.date][selectedCell.mealType])
+        newSchedule[selectedCell.date][selectedCell.mealType] = [];
 
-    if (!exists) {
-      newSchedule[selectedCell.date][selectedCell.mealType].push(card);
+      const exists = newSchedule[selectedCell.date][selectedCell.mealType].find(
+        (c) => c.id === card.id
+      );
+
+      if (!exists) {
+        newSchedule[selectedCell.date][selectedCell.mealType].push(card);
+      }
+
+      setSchedule(newSchedule);
+      setShowSelectMenuPopup(false);
+      setSelectedCell(null);
+    } catch (error) {
+      console.error("Error adding to schedule:", error);
+      alert("Gagal menambahkan ke jadwal");
     }
-
-    setSchedule(newSchedule);
-    setShowSelectMenuPopup(false);
-    setSelectedCell(null);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-orange-500 mb-4"></div>
+          <p className="text-gray-600 text-lg">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 p-6">
