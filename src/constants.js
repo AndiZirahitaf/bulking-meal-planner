@@ -1,0 +1,33 @@
+export const MEAL_TYPES = [
+  "Starter",
+  "Breakfast",
+  "Brunch",
+  "Lunch",
+  "Afternoon Snack",
+  "Dinner",
+  "Before Sleep",
+];
+
+export const DEFAULT_INGREDIENTS = {
+  alpukat: { calories: 160, unit: "buah" },
+  "roti tawar": { calories: 265, unit: "slice (100g)" },
+  telur: { calories: 155, unit: "butir" },
+  "nasi putih": { calories: 130, unit: "100g" },
+  ayam: { calories: 165, unit: "100g" },
+  "daging sapi": { calories: 250, unit: "100g" },
+  ikan: { calories: 206, unit: "100g" },
+  tempe: { calories: 195, unit: "100g" },
+  tahu: { calories: 76, unit: "100g" },
+  susu: { calories: 61, unit: "100ml" },
+  pisang: { calories: 89, unit: "buah" },
+  oatmeal: { calories: 389, unit: "100g" },
+  "selai kacang": { calories: 588, unit: "100g" },
+  kentang: { calories: 77, unit: "100g" },
+  brokoli: { calories: 34, unit: "100g" },
+  bayam: { calories: 23, unit: "100g" },
+  wortel: { calories: 41, unit: "100g" },
+  keju: { calories: 402, unit: "100g" },
+  yogurt: { calories: 59, unit: "100g" },
+  madu: { calories: 304, unit: "100g" },
+  "daun bawang": { calories: 32, unit: "100g" },
+};

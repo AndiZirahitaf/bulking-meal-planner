@@ -1,0 +1,196 @@
+import React, { useState } from "react";
+import { X } from "lucide-react";
+import Header from "./components/Header";
+import MenuLibrary from "./components/MenuLibrary";
+import ScheduleGrid from "./components/ScheduleGrid";
+import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
+
+export default function App() {
+  const [startDate, setStartDate] = useState("2024-12-26");
+  const [endDate, setEndDate] = useState("2025-01-03");
+  const [foodCards, setFoodCards] = useState([]);
+  const [schedule, setSchedule] = useState({});
+  const [draggedCard, setDraggedCard] = useState(null);
+  const [selectedCard, setSelectedCard] = useState(null);
+  const [ingredientDatabase, setIngredientDatabase] =
+    useState(DEFAULT_INGREDIENTS);
+
+  const dates = (() => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    const dates = [];
+    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+      dates.push(new Date(d).toISOString().split("T")[0]);
+    }
+    return dates;
+  })();
+
+  const calculateCardCalories = (ingredients) => {
+    return ingredients.reduce((total, ing) => {
+      const ingredient = ingredientDatabase[ing.name.toLowerCase()];
+      if (ingredient && ing.amount) {
+        return total + ingredient.calories * parseFloat(ing.amount);
+      }
+      return total;
+    }, 0);
+  };
+
+  const handleDragStart = (card) => {
+    setDraggedCard(card);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
+  const handleDrop = (date, mealType) => {
+    if (draggedCard) {
+      const newSchedule = { ...schedule };
+      if (!newSchedule[date]) newSchedule[date] = {};
+      if (!newSchedule[date][mealType]) newSchedule[date][mealType] = [];
+
+      const exists = newSchedule[date][mealType].find(
+        (c) => c.id === draggedCard.id
+      );
+      if (!exists) {
+        newSchedule[date][mealType].push(draggedCard);
+      }
+
+      setSchedule(newSchedule);
+      setDraggedCard(null);
+    }
+  };
+
+  const removeFromSchedule = (date, mealType, cardId) => {
+    const newSchedule = { ...schedule };
+    newSchedule[date][mealType] = newSchedule[date][mealType].filter(
+      (c) => c.id !== cardId
+    );
+    setSchedule(newSchedule);
+  };
+
+  const getDailyCalories = (date) => {
+    if (!schedule[date]) return 0;
+    let total = 0;
+    Object.values(schedule[date]).forEach((meals) => {
+      meals.forEach((meal) => {
+        total += meal.calories;
+      });
+    });
+    return total;
+  };
+
+  const updateScheduleCard = (updatedCard) => {
+    const newSchedule = { ...schedule };
+    Object.keys(newSchedule).forEach((date) => {
+      Object.keys(newSchedule[date]).forEach((mealType) => {
+        newSchedule[date][mealType] = newSchedule[date][mealType].map((c) =>
+          c.id === updatedCard.id ? updatedCard : c
+        );
+      });
+    });
+    setSchedule(newSchedule);
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <Header
+          startDate={startDate}
+          endDate={endDate}
+          setStartDate={setStartDate}
+          setEndDate={setEndDate}
+          totalDays={dates.length}
+        />
+
+        <MenuLibrary
+          foodCards={foodCards}
+          setFoodCards={setFoodCards}
+          ingredientDatabase={ingredientDatabase}
+          setIngredientDatabase={setIngredientDatabase}
+          calculateCardCalories={calculateCardCalories}
+          handleDragStart={handleDragStart}
+          setSelectedCard={setSelectedCard}
+          updateScheduleCard={updateScheduleCard}
+        />
+
+        <ScheduleGrid
+          dates={dates}
+          schedule={schedule}
+          handleDragOver={handleDragOver}
+          handleDrop={handleDrop}
+          removeFromSchedule={removeFromSchedule}
+          getDailyCalories={getDailyCalories}
+          setSelectedCard={setSelectedCard}
+        />
+
+        {selectedCard && (
+          <DetailPopup
+            selectedCard={selectedCard}
+            setSelectedCard={setSelectedCard}
+            ingredientDatabase={ingredientDatabase}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DetailPopup({ selectedCard, setSelectedCard, ingredientDatabase }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6">
+        <div className="flex justify-between items-start mb-4">
+          <div>
+            <h3 className="text-2xl font-bold text-gray-800">
+              {selectedCard.name}
+            </h3>
+            <span className="inline-block mt-2 px-3 py-1 bg-orange-100 text-orange-600 rounded-full text-sm font-semibold">
+              {selectedCard.category}
+            </span>
+          </div>
+          <button
+            onClick={() => setSelectedCard(null)}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+          >
+            <X size={24} />
+          </button>
+        </div>
+
+        <div className="mb-4">
+          <h4 className="font-bold text-lg mb-2 text-gray-700">Bahan-bahan:</h4>
+          <div className="space-y-2">
+            {selectedCard.ingredients.map((ing, i) => (
+              <div
+                key={i}
+                className="flex justify-between items-center bg-gray-50 p-3 rounded-lg"
+              >
+                <span className="font-medium">{ing.name}</span>
+                <span className="text-gray-600">
+                  {ing.amount} {ing.unit}
+                  <span className="ml-2 text-orange-600 font-semibold">
+                    (
+                    {Math.round(
+                      ingredientDatabase[ing.name.toLowerCase()].calories *
+                        parseFloat(ing.amount)
+                    )}{" "}
+                    kkal)
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <div className="flex justify-between items-center text-xl font-bold">
+            <span>Total Kalori:</span>
+            <span className="text-orange-600">
+              {Math.round(selectedCard.calories)} kkal
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
