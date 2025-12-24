@@ -10,7 +10,7 @@ export default function MenuFormPopup({
 }) {
   const [formData, setFormData] = useState({
     name: "",
-    category: "Breakfast",
+    categories: ["Breakfast"],
     ingredients: [{ name: "", amount: "", unit: "" }],
   });
   const [errors, setErrors] = useState({});
@@ -19,17 +19,39 @@ export default function MenuFormPopup({
     if (editingCard) {
       setFormData({
         name: editingCard.name,
-        category: editingCard.category,
+        categories: editingCard.categories || [editingCard.category],
         ingredients: [...editingCard.ingredients],
       });
     }
   }, [editingCard]);
+
+  const calculateTotalCalories = () => {
+    return formData.ingredients.reduce((total, ing) => {
+      const ingredient = ingredientDatabase[ing.name.toLowerCase()];
+      if (ingredient && ing.amount) {
+        return total + ingredient.calories * parseFloat(ing.amount);
+      }
+      return total;
+    }, 0);
+  };
+
+  const getIngredientCalories = (ingredientName, amount) => {
+    const ingredient = ingredientDatabase[ingredientName.toLowerCase()];
+    if (ingredient && amount) {
+      return ingredient.calories * parseFloat(amount);
+    }
+    return 0;
+  };
 
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
       newErrors.name = "Nama makanan harus diisi";
+    }
+
+    if (formData.categories.length === 0) {
+      newErrors.categories = "Minimal harus ada 1 kategori";
     }
 
     const validIngredients = formData.ingredients.filter(
@@ -74,12 +96,27 @@ export default function MenuFormPopup({
     setFormData({ ...formData, ingredients: updated });
   };
 
+  const toggleCategory = (category) => {
+    const categories = [...formData.categories];
+    const index = categories.indexOf(category);
+
+    if (index > -1) {
+      if (categories.length > 1) {
+        categories.splice(index, 1);
+      }
+    } else {
+      categories.push(category);
+    }
+
+    setFormData({ ...formData, categories });
+  };
+
   const handleSubmit = () => {
     if (!validateForm()) return;
 
     onSave({
       name: formData.name,
-      category: formData.category,
+      categories: formData.categories,
       ingredients: formData.ingredients.filter((i) => i.name && i.amount),
     });
   };
@@ -124,21 +161,27 @@ export default function MenuFormPopup({
           {/* Kategori */}
           <div className="mb-4">
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Kategori
+              Kategori (bisa pilih lebih dari 1)
             </label>
-            <select
-              value={formData.category}
-              onChange={(e) =>
-                setFormData({ ...formData, category: e.target.value })
-              }
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg"
-            >
+            <div className="flex flex-wrap gap-2">
               {MEAL_TYPES.map((type) => (
-                <option key={type} value={type}>
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => toggleCategory(type)}
+                  className={`px-4 py-2 rounded-lg font-medium transition ${
+                    formData.categories.includes(type)
+                      ? "bg-orange-500 text-white"
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                  }`}
+                >
                   {type}
-                </option>
+                </button>
               ))}
-            </select>
+            </div>
+            {errors.categories && (
+              <p className="text-red-500 text-sm mt-1">{errors.categories}</p>
+            )}
           </div>
 
           {/* Bahan-bahan */}
@@ -147,50 +190,61 @@ export default function MenuFormPopup({
               Bahan-bahan
             </label>
             <div className="space-y-2 mb-3">
-              {formData.ingredients.map((ing, index) => (
-                <div key={index} className="flex gap-2">
-                  <select
-                    value={ing.name}
-                    onChange={(e) =>
-                      updateIngredient(index, "name", e.target.value)
-                    }
-                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  >
-                    <option value="">Pilih bahan...</option>
-                    {Object.keys(ingredientDatabase)
-                      .sort()
-                      .map((ingredient) => (
-                        <option key={ingredient} value={ingredient}>
-                          {ingredient.charAt(0).toUpperCase() +
-                            ingredient.slice(1)}
-                        </option>
-                      ))}
-                  </select>
-                  <input
-                    type="number"
-                    step="0.1"
-                    placeholder="Jumlah"
-                    value={ing.amount}
-                    onChange={(e) =>
-                      updateIngredient(index, "amount", e.target.value)
-                    }
-                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
-                  />
-                  <input
-                    type="text"
-                    value={ing.unit}
-                    readOnly
-                    placeholder="Satuan"
-                    className="w-28 px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
-                  />
-                  <button
-                    onClick={() => removeIngredient(index)}
-                    className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                  >
-                    <X size={16} />
-                  </button>
-                </div>
-              ))}
+              {formData.ingredients.map((ing, index) => {
+                const ingredientCalories = getIngredientCalories(
+                  ing.name,
+                  ing.amount
+                );
+                return (
+                  <div key={index} className="flex gap-2 items-start">
+                    <select
+                      value={ing.name}
+                      onChange={(e) =>
+                        updateIngredient(index, "name", e.target.value)
+                      }
+                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    >
+                      <option value="">Pilih bahan...</option>
+                      {Object.keys(ingredientDatabase)
+                        .sort()
+                        .map((ingredient) => (
+                          <option key={ingredient} value={ingredient}>
+                            {ingredient.charAt(0).toUpperCase() +
+                              ingredient.slice(1)}
+                          </option>
+                        ))}
+                    </select>
+                    <input
+                      type="number"
+                      step="0.1"
+                      placeholder="Jumlah"
+                      value={ing.amount}
+                      onChange={(e) =>
+                        updateIngredient(index, "amount", e.target.value)
+                      }
+                      className="w-24 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                    />
+                    <input
+                      type="text"
+                      value={ing.unit}
+                      readOnly
+                      placeholder="Satuan"
+                      className="w-28 px-3 py-2 border border-gray-300 rounded-lg bg-gray-100 text-sm"
+                    />
+                    {ing.name && ing.amount && (
+                      <div className="px-3 py-2 bg-orange-100 text-orange-600 rounded-lg text-sm font-semibold whitespace-nowrap min-w-[80px] text-center">
+                        {Math.round(ingredientCalories)} kkal
+                      </div>
+                    )}
+                    <button
+                      onClick={() => removeIngredient(index)}
+                      className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                );
+              })}
             </div>
             {errors.ingredients && (
               <p className="text-red-500 text-sm mb-2">{errors.ingredients}</p>
@@ -202,6 +256,18 @@ export default function MenuFormPopup({
               <Plus size={16} />
               Tambah Bahan
             </button>
+          </div>
+
+          {/* Total Kalori */}
+          <div className="bg-orange-50 border-2 border-orange-300 rounded-lg p-4">
+            <div className="flex justify-between items-center">
+              <span className="text-lg font-bold text-gray-800">
+                Total Kalori:
+              </span>
+              <span className="text-2xl font-bold text-orange-600">
+                {Math.round(calculateTotalCalories())} kkal
+              </span>
+            </div>
           </div>
         </div>
 

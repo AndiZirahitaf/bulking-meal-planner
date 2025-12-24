@@ -3,6 +3,7 @@ import { X } from "lucide-react";
 import Header from "./components/Header";
 import MenuLibrary from "./components/MenuLibrary";
 import ScheduleGrid from "./components/ScheduleGrid";
+import MenuFormPopup from "./components/MenuFormPopup";
 import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
 
 export default function App() {
@@ -14,6 +15,8 @@ export default function App() {
   const [selectedCard, setSelectedCard] = useState(null);
   const [ingredientDatabase, setIngredientDatabase] =
     useState(DEFAULT_INGREDIENTS);
+  const [showCellMenuPopup, setShowCellMenuPopup] = useState(false);
+  const [selectedCell, setSelectedCell] = useState(null);
 
   const dates = (() => {
     const start = new Date(startDate);
@@ -92,6 +95,36 @@ export default function App() {
     setSchedule(newSchedule);
   };
 
+  const handleCellClick = (date, mealType) => {
+    setSelectedCell({ date, mealType });
+    setShowCellMenuPopup(true);
+  };
+
+  const handleAddMenuToCell = (cardData) => {
+    const calories = calculateCardCalories(cardData.ingredients);
+    const newCard = {
+      id: Date.now(),
+      name: cardData.name,
+      categories: cardData.categories,
+      ingredients: cardData.ingredients,
+      calories,
+    };
+
+    // Add to food cards library
+    setFoodCards([...foodCards, newCard]);
+
+    // Add to schedule
+    const newSchedule = { ...schedule };
+    if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
+    if (!newSchedule[selectedCell.date][selectedCell.mealType])
+      newSchedule[selectedCell.date][selectedCell.mealType] = [];
+    newSchedule[selectedCell.date][selectedCell.mealType].push(newCard);
+
+    setSchedule(newSchedule);
+    setShowCellMenuPopup(false);
+    setSelectedCell(null);
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -122,6 +155,8 @@ export default function App() {
           removeFromSchedule={removeFromSchedule}
           getDailyCalories={getDailyCalories}
           setSelectedCard={setSelectedCard}
+          onCellClick={handleCellClick}
+          draggedCard={draggedCard}
         />
 
         {selectedCard && (
@@ -129,6 +164,18 @@ export default function App() {
             selectedCard={selectedCard}
             setSelectedCard={setSelectedCard}
             ingredientDatabase={ingredientDatabase}
+          />
+        )}
+
+        {showCellMenuPopup && (
+          <MenuFormPopup
+            editingCard={null}
+            ingredientDatabase={ingredientDatabase}
+            onSave={handleAddMenuToCell}
+            onClose={() => {
+              setShowCellMenuPopup(false);
+              setSelectedCell(null);
+            }}
           />
         )}
       </div>
@@ -145,9 +192,16 @@ function DetailPopup({ selectedCard, setSelectedCard, ingredientDatabase }) {
             <h3 className="text-2xl font-bold text-gray-800">
               {selectedCard.name}
             </h3>
-            <span className="inline-block mt-2 px-3 py-1 bg-orange-100 text-orange-600 rounded-full text-sm font-semibold">
-              {selectedCard.category}
-            </span>
+            <div className="flex flex-wrap gap-1 mt-2">
+              {selectedCard.categories.map((cat) => (
+                <span
+                  key={cat}
+                  className="inline-block px-3 py-1 bg-purple-100 text-purple-600 rounded-full text-sm font-semibold"
+                >
+                  {cat}
+                </span>
+              ))}
+            </div>
           </div>
           <button
             onClick={() => setSelectedCard(null)}

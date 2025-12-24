@@ -1,9 +1,9 @@
 import React, { useState } from "react";
-import { Plus, Search, Database } from "lucide-react";
-import { MEAL_TYPES } from "../constants";
-import IngredientDatabasePopup from "./IngredientDatabasePopup";
-import MenuFormPopup from "./MenuFormPopup";
+import { Plus, Database, Search } from "lucide-react";
 import FoodCard from "./FoodCard";
+import MenuFormPopup from "./MenuFormPopup";
+import IngredientDatabasePopup from "./IngredientDatabasePopup";
+import { MEAL_TYPES } from "../constants";
 
 export default function MenuLibrary({
   foodCards,
@@ -15,159 +15,183 @@ export default function MenuLibrary({
   setSelectedCard,
   updateScheduleCard,
 }) {
-  const [showIngredientDB, setShowIngredientDB] = useState(false);
-  const [showMenuForm, setShowMenuForm] = useState(false);
-  const [editingCard, setEditingCard] = useState(null);
+  const [activeCategory, setActiveCategory] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-
-  const deleteCard = (cardId) => {
-    if (confirm("Yakin ingin menghapus menu ini?")) {
-      setFoodCards(foodCards.filter((c) => c.id !== cardId));
-    }
-  };
+  const [showForm, setShowForm] = useState(false);
+  const [showIngredientDb, setShowIngredientDb] = useState(false);
+  const [editingCard, setEditingCard] = useState(null);
 
   const handleSaveCard = (cardData) => {
-    const card = {
-      id: editingCard?.id || Date.now(),
-      ...cardData,
-      calories: calculateCardCalories(cardData.ingredients),
-    };
+    const calories = calculateCardCalories(cardData.ingredients);
 
     if (editingCard) {
-      setFoodCards(foodCards.map((c) => (c.id === editingCard.id ? card : c)));
-      updateScheduleCard(card);
+      const updatedCard = {
+        ...editingCard,
+        name: cardData.name,
+        categories: cardData.categories,
+        ingredients: cardData.ingredients,
+        calories,
+      };
+      setFoodCards(
+        foodCards.map((c) => (c.id === editingCard.id ? updatedCard : c))
+      );
+      updateScheduleCard(updatedCard);
     } else {
-      setFoodCards([...foodCards, card]);
+      const newCard = {
+        id: Date.now(),
+        name: cardData.name,
+        categories: cardData.categories,
+        ingredients: cardData.ingredients,
+        calories,
+      };
+      setFoodCards([...foodCards, newCard]);
     }
 
-    setShowMenuForm(false);
+    setShowForm(false);
     setEditingCard(null);
   };
 
   const handleEditCard = (card) => {
     setEditingCard(card);
-    setShowMenuForm(true);
+    setShowForm(true);
   };
 
-  const handleCreateNew = () => {
-    setEditingCard(null);
-    setShowMenuForm(true);
+  const handleDeleteCard = (cardId) => {
+    if (confirm("Yakin ingin menghapus menu ini?")) {
+      setFoodCards(foodCards.filter((c) => c.id !== cardId));
+    }
   };
 
-  // Filter cards
   const filteredCards = foodCards.filter((card) => {
-    const matchesSearch = card.name
-      .toLowerCase()
-      .includes(searchQuery.toLowerCase());
-    const matchesCategory =
-      selectedCategory === "All" || card.category === selectedCategory;
-    return matchesSearch && matchesCategory;
+    // Filter by category
+    const categoryMatch =
+      activeCategory === "All" || card.categories.includes(activeCategory);
+
+    // Filter by search query
+    const searchMatch =
+      searchQuery === "" ||
+      card.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      card.ingredients.some((ing) =>
+        ing.name.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+
+    return categoryMatch && searchMatch;
   });
 
-  // Group by category
-  const groupedCards = MEAL_TYPES.reduce((acc, category) => {
-    acc[category] = filteredCards.filter((card) => card.category === category);
-    return acc;
-  }, {});
+  const getCategoryCount = (category) => {
+    if (category === "All") {
+      return foodCards.length;
+    }
+    return foodCards.filter((c) => c.categories.includes(category)).length;
+  };
 
   return (
     <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold text-gray-800">Menu Makanan</h2>
+        <h2 className="text-2xl font-bold text-gray-800">Library Menu</h2>
         <div className="flex gap-2">
           <button
-            onClick={() => setShowIngredientDB(true)}
-            className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+            onClick={() => setShowIngredientDb(true)}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 font-semibold"
           >
-            <Database size={20} />
+            <Database size={18} />
             Database Bahan
           </button>
           <button
-            onClick={handleCreateNew}
-            className="flex items-center gap-2 bg-orange-500 text-white px-4 py-2 rounded-lg hover:bg-orange-600 transition"
+            onClick={() => {
+              setEditingCard(null);
+              setShowForm(true);
+            }}
+            className="flex items-center gap-2 px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold"
           >
-            <Plus size={20} />
+            <Plus size={18} />
             Buat Menu Baru
           </button>
         </div>
       </div>
 
-      {/* Search and Filter */}
-      <div className="flex gap-4 mb-6">
-        <div className="flex-1 relative">
+      {/* Search and Filter Section */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        {/* Search Bar */}
+        <div className="relative">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
             size={20}
           />
           <input
             type="text"
-            placeholder="Cari menu..."
+            placeholder="Cari menu atau bahan..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
           />
         </div>
-        <select
-          value={selectedCategory}
-          onChange={(e) => setSelectedCategory(e.target.value)}
-          className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-        >
-          <option value="All">Semua Kategori</option>
-          {MEAL_TYPES.map((type) => (
-            <option key={type} value={type}>
-              {type}
+
+        {/* Category Filter Dropdown */}
+        <div>
+          <select
+            value={activeCategory}
+            onChange={(e) => setActiveCategory(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent font-medium"
+          >
+            <option value="All">
+              Semua Kategori ({getCategoryCount("All")})
             </option>
-          ))}
-        </select>
+            {MEAL_TYPES.map((type) => (
+              <option key={type} value={type}>
+                {type} ({getCategoryCount(type)})
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
-      {/* Food Cards - Horizontal Scrollable Categories */}
-      <div className="space-y-6">
-        {MEAL_TYPES.map((category) => {
-          const cards = groupedCards[category];
-          if (cards.length === 0) return null;
-
-          return (
-            <div key={category}>
-              <h3 className="font-bold text-lg text-gray-700 mb-3 border-b-2 border-orange-200 pb-2">
-                {category} ({cards.length})
-              </h3>
-              <div className="flex gap-4 overflow-x-auto pb-2">
-                {cards.map((card) => (
-                  <FoodCard
-                    key={card.id}
-                    card={card}
-                    onDragStart={() => handleDragStart(card)}
-                    onEdit={() => handleEditCard(card)}
-                    onDelete={() => deleteCard(card.id)}
-                    onClick={() => setSelectedCard(card)}
-                  />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+      {/* Results Info */}
+      <div className="mb-3 text-sm text-gray-600">
+        Menampilkan {filteredCards.length} menu
+        {searchQuery && ` untuk "${searchQuery}"`}
+        {activeCategory !== "All" && ` di kategori ${activeCategory}`}
       </div>
 
-      {/* Popups */}
-      {showIngredientDB && (
-        <IngredientDatabasePopup
-          ingredientDatabase={ingredientDatabase}
-          setIngredientDatabase={setIngredientDatabase}
-          onClose={() => setShowIngredientDB(false)}
-        />
-      )}
+      {/* Food Cards */}
+      <div className="flex gap-4 overflow-x-auto pb-4">
+        {filteredCards.length === 0 ? (
+          <div className="text-gray-500 text-center w-full py-8">
+            {searchQuery || activeCategory !== "All"
+              ? "Tidak ada menu yang sesuai dengan pencarian atau filter."
+              : 'Belum ada menu. Klik "Buat Menu Baru" untuk menambahkan.'}
+          </div>
+        ) : (
+          filteredCards.map((card) => (
+            <FoodCard
+              key={card.id}
+              card={card}
+              onDragStart={() => handleDragStart(card)}
+              onEdit={() => handleEditCard(card)}
+              onDelete={() => handleDeleteCard(card.id)}
+              onClick={() => setSelectedCard(card)}
+            />
+          ))
+        )}
+      </div>
 
-      {showMenuForm && (
+      {showForm && (
         <MenuFormPopup
           editingCard={editingCard}
           ingredientDatabase={ingredientDatabase}
           onSave={handleSaveCard}
           onClose={() => {
-            setShowMenuForm(false);
+            setShowForm(false);
             setEditingCard(null);
           }}
+        />
+      )}
+
+      {showIngredientDb && (
+        <IngredientDatabasePopup
+          ingredientDatabase={ingredientDatabase}
+          setIngredientDatabase={setIngredientDatabase}
+          onClose={() => setShowIngredientDb(false)}
         />
       )}
     </div>

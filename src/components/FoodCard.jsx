@@ -40,6 +40,16 @@ export default function FoodCard({
         <div className="flex items-center gap-2 mb-2">
           <h3 className="font-semibold text-base">{card.name}</h3>
         </div>
+        <div className="flex flex-wrap gap-1 mb-2">
+          {card.categories.map((cat) => (
+            <span
+              key={cat}
+              className="inline-block px-2 py-0.5 bg-purple-100 text-purple-600 rounded-full text-xs font-medium"
+            >
+              {cat}
+            </span>
+          ))}
+        </div>
         <span className="inline-block px-2 py-1 bg-orange-100 text-orange-600 rounded-full text-xs font-bold">
           {Math.round(card.calories)} kkal
         </span>
