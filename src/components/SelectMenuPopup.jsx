@@ -1,20 +1,18 @@
 import React, { useState } from "react";
-import { X, Search, Plus } from "lucide-react";
+import { X, Search } from "lucide-react";
 
 export default function SelectMenuPopup({
   foodCards,
   selectedCell,
   onAddToSchedule,
   onClose,
-  onCreateNew,
 }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("All");
 
+  // Only show menus that have the category matching the selected cell's meal type
   const filteredCards = foodCards.filter((card) => {
-    // Filter by category
-    const categoryMatch =
-      selectedCategory === "All" || card.categories.includes(selectedCategory);
+    // Must have the category of the selected meal type
+    const categoryMatch = card.categories.includes(selectedCell.mealType);
 
     // Filter by search query
     const searchMatch =
@@ -27,22 +25,17 @@ export default function SelectMenuPopup({
     return categoryMatch && searchMatch;
   });
 
-  // Get unique categories from all food cards
-  const allCategories = [
-    ...new Set(foodCards.flatMap((card) => card.categories)),
-  ];
-
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden flex flex-col">
         <div className="flex justify-between items-center p-6 border-b">
           <div>
-            <h3 className="text-2xl font-bold text-gray-800">Pilih Menu</h3>
+            <h3 className="text-2xl font-bold text-gray-800">
+              Pilih Menu untuk {selectedCell.mealType}
+            </h3>
             <p className="text-sm text-gray-600 mt-1">
               {selectedCell &&
-                `Menambahkan ke ${selectedCell.mealType} - ${new Date(
-                  selectedCell.date
-                ).toLocaleDateString("id-ID", {
+                `${new Date(selectedCell.date).toLocaleDateString("id-ID", {
                   weekday: "long",
                   day: "numeric",
                   month: "long",
@@ -58,68 +51,33 @@ export default function SelectMenuPopup({
         </div>
 
         <div className="p-6 border-b bg-gray-50">
-          {/* Search and Filter */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
-                size={20}
-              />
-              <input
-                type="text"
-                placeholder="Cari menu..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
-              />
-            </div>
-
-            {/* Category Filter */}
-            <div>
-              <select
-                value={selectedCategory}
-                onChange={(e) => setSelectedCategory(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent font-medium"
-              >
-                <option value="All">Semua Kategori</option>
-                {allCategories.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-            </div>
+          {/* Search Bar Only */}
+          <div className="relative">
+            <Search
+              className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
+              size={20}
+            />
+            <input
+              type="text"
+              placeholder={`Cari menu ${selectedCell.mealType}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent"
+            />
           </div>
-
-          {/* Create New Menu Button */}
-          <button
-            onClick={onCreateNew}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold"
-          >
-            <Plus size={18} />
-            Buat Menu Baru
-          </button>
         </div>
 
         <div className="p-6 overflow-y-auto flex-1">
-          {foodCards.length === 0 ? (
+          {filteredCards.length === 0 ? (
             <div className="text-center py-12">
-              <p className="text-gray-500 text-lg mb-4">
-                Belum ada menu tersedia
+              <p className="text-gray-500 text-lg mb-2">
+                {searchQuery
+                  ? `Tidak ada menu ${selectedCell.mealType} yang sesuai dengan pencarian`
+                  : `Belum ada menu untuk kategori ${selectedCell.mealType}`}
               </p>
-              <button
-                onClick={onCreateNew}
-                className="inline-flex items-center gap-2 px-6 py-3 bg-green-500 text-white rounded-lg hover:bg-green-600 font-semibold"
-              >
-                <Plus size={18} />
-                Buat Menu Pertama
-              </button>
-            </div>
-          ) : filteredCards.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-gray-500 text-lg">
-                Tidak ada menu yang sesuai dengan pencarian
+              <p className="text-gray-400 text-sm">
+                Buat menu baru dengan kategori {selectedCell.mealType} di
+                Library Menu
               </p>
             </div>
           ) : (

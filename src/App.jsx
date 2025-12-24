@@ -4,7 +4,6 @@ import Header from "./components/Header";
 import MenuLibrary from "./components/MenuLibrary";
 import ScheduleGrid from "./components/ScheduleGrid";
 import SelectMenuPopup from "./components/SelectMenuPopup";
-import MenuFormPopup from "./components/MenuFormPopup";
 import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
 
 export default function App() {
@@ -17,7 +16,6 @@ export default function App() {
   const [ingredientDatabase, setIngredientDatabase] =
     useState(DEFAULT_INGREDIENTS);
   const [showSelectMenuPopup, setShowSelectMenuPopup] = useState(false);
-  const [showCreateMenuPopup, setShowCreateMenuPopup] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
 
   const dates = (() => {
@@ -50,6 +48,13 @@ export default function App() {
 
   const handleDrop = (date, mealType) => {
     if (draggedCard) {
+      // Check if the card has the category matching the meal type
+      if (!draggedCard.categories.includes(mealType)) {
+        alert(`Menu "${draggedCard.name}" tidak memiliki kategori ${mealType}`);
+        setDraggedCard(null);
+        return;
+      }
+
       const newSchedule = { ...schedule };
       if (!newSchedule[date]) newSchedule[date] = {};
       if (!newSchedule[date][mealType]) newSchedule[date][mealType] = [];
@@ -85,13 +90,21 @@ export default function App() {
     return total;
   };
 
-  const updateScheduleCard = (updatedCard) => {
+  const updateScheduleCard = (updatedCard, removedCategories = []) => {
     const newSchedule = { ...schedule };
     Object.keys(newSchedule).forEach((date) => {
       Object.keys(newSchedule[date]).forEach((mealType) => {
-        newSchedule[date][mealType] = newSchedule[date][mealType].map((c) =>
-          c.id === updatedCard.id ? updatedCard : c
-        );
+        // If this mealType is in removedCategories, remove the card
+        if (removedCategories.includes(mealType)) {
+          newSchedule[date][mealType] = newSchedule[date][mealType].filter(
+            (c) => c.id !== updatedCard.id
+          );
+        } else {
+          // Otherwise, update the card if it exists
+          newSchedule[date][mealType] = newSchedule[date][mealType].map((c) =>
+            c.id === updatedCard.id ? updatedCard : c
+          );
+        }
       });
     });
     setSchedule(newSchedule);
@@ -121,38 +134,6 @@ export default function App() {
 
     setSchedule(newSchedule);
     setShowSelectMenuPopup(false);
-    setSelectedCell(null);
-  };
-
-  const handleCreateNewFromCell = () => {
-    setShowSelectMenuPopup(false);
-    setShowCreateMenuPopup(true);
-  };
-
-  const handleSaveNewMenuFromCell = (cardData) => {
-    const calories = calculateCardCalories(cardData.ingredients);
-    const newCard = {
-      id: Date.now(),
-      name: cardData.name,
-      categories: cardData.categories,
-      ingredients: cardData.ingredients,
-      calories,
-    };
-
-    // Add to food cards library
-    setFoodCards([...foodCards, newCard]);
-
-    // Add to schedule if cell is selected
-    if (selectedCell) {
-      const newSchedule = { ...schedule };
-      if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
-      if (!newSchedule[selectedCell.date][selectedCell.mealType])
-        newSchedule[selectedCell.date][selectedCell.mealType] = [];
-      newSchedule[selectedCell.date][selectedCell.mealType].push(newCard);
-      setSchedule(newSchedule);
-    }
-
-    setShowCreateMenuPopup(false);
     setSelectedCell(null);
   };
 
@@ -205,19 +186,6 @@ export default function App() {
             onAddToSchedule={handleAddMenuToCell}
             onClose={() => {
               setShowSelectMenuPopup(false);
-              setSelectedCell(null);
-            }}
-            onCreateNew={handleCreateNewFromCell}
-          />
-        )}
-
-        {showCreateMenuPopup && (
-          <MenuFormPopup
-            editingCard={null}
-            ingredientDatabase={ingredientDatabase}
-            onSave={handleSaveNewMenuFromCell}
-            onClose={() => {
-              setShowCreateMenuPopup(false);
               setSelectedCell(null);
             }}
           />

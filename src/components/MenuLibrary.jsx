@@ -25,6 +25,37 @@ export default function MenuLibrary({
     const calories = calculateCardCalories(cardData.ingredients);
 
     if (editingCard) {
+      // Check if categories have changed
+      const oldCategories = editingCard.categories || [];
+      const newCategories = cardData.categories || [];
+
+      const removedCategories = oldCategories.filter(
+        (cat) => !newCategories.includes(cat)
+      );
+
+      if (removedCategories.length > 0) {
+        // Check if this menu exists in schedule for the removed categories
+        const affectedLocations = [];
+
+        // Scan the schedule - this requires passing schedule as prop
+        // We'll need to update this component to receive schedule
+        // For now, show a warning
+        const confirmMessage =
+          `Kategori berikut akan dihapus: ${removedCategories.join(
+            ", "
+          )}.\n\n` +
+          `Menu "${
+            editingCard.name
+          }" akan dihapus dari semua jadwal dengan waktu makan: ${removedCategories.join(
+            ", "
+          )}.\n\n` +
+          `Apakah Anda yakin ingin melanjutkan?`;
+
+        if (!confirm(confirmMessage)) {
+          return; // Cancel the update
+        }
+      }
+
       const updatedCard = {
         ...editingCard,
         name: cardData.name,
@@ -32,10 +63,13 @@ export default function MenuLibrary({
         ingredients: cardData.ingredients,
         calories,
       };
+
       setFoodCards(
         foodCards.map((c) => (c.id === editingCard.id ? updatedCard : c))
       );
-      updateScheduleCard(updatedCard);
+
+      // Update schedule and remove from incompatible meal types
+      updateScheduleCard(updatedCard, removedCategories);
     } else {
       const newCard = {
         id: Date.now(),
@@ -111,9 +145,9 @@ export default function MenuLibrary({
       </div>
 
       {/* Search and Filter Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
         {/* Search Bar */}
-        <div className="relative">
+        <div className="relative md:col-span-3">
           <Search
             className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"
             size={20}
@@ -128,7 +162,7 @@ export default function MenuLibrary({
         </div>
 
         {/* Category Filter Dropdown */}
-        <div>
+        <div className="md:col-span-1">
           <select
             value={activeCategory}
             onChange={(e) => setActiveCategory(e.target.value)}
