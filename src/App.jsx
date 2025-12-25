@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from "react";
-import { X } from "lucide-react";
+import { X, LogOut, User } from "lucide-react";
 import Header from "./components/Header";
 import MenuLibrary from "./components/MenuLibrary";
 import ScheduleGrid from "./components/ScheduleGrid";
 import SelectMenuPopup from "./components/SelectMenuPopup";
+import Auth from "./components/Auth";
 import { DEFAULT_INGREDIENTS, MEAL_TYPES } from "./constants";
+import { supabase } from "./supabaseClient";
 import * as db from "./databaseService";
 
 export default function App() {
+  const [user, setUser] = useState(null);
   const [startDate, setStartDate] = useState("2024-12-26");
   const [endDate, setEndDate] = useState("2025-01-03");
   const [foodCards, setFoodCards] = useState([]);
@@ -19,18 +22,65 @@ export default function App() {
   const [showSelectMenuPopup, setShowSelectMenuPopup] = useState(false);
   const [selectedCell, setSelectedCell] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showUserMenu, setShowUserMenu] = useState(false);
 
-  // Load data on mount
+  // Check user authentication on mount
   useEffect(() => {
-    loadInitialData();
+    checkUser();
+
+    // Listen for auth changes
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          loadInitialData();
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
+      }
+    );
+
+    return () => {
+      authListener?.subscription?.unsubscribe();
+    };
   }, []);
 
-  // Load schedule when date range changes
+  const checkUser = async () => {
+    try {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        loadInitialData();
+      } else {
+        setLoading(false);
+      }
+    } catch (error) {
+      console.error("Error checking user:", error);
+      setLoading(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+      setFoodCards([]);
+      setSchedule({});
+      setIngredientDatabase(DEFAULT_INGREDIENTS);
+    } catch (error) {
+      console.error("Error signing out:", error);
+    }
+  };
+
+  // Load data when dates change
   useEffect(() => {
-    if (startDate && endDate) {
+    if (user && startDate && endDate) {
       loadSchedule();
     }
-  }, [startDate, endDate]);
+  }, [startDate, endDate, user]);
 
   const loadInitialData = async () => {
     try {
@@ -101,10 +151,8 @@ export default function App() {
       }
 
       try {
-        // Add to database
         await db.addToSchedule(date, mealType, draggedCard.id);
 
-        // Update local state
         const newSchedule = { ...schedule };
         if (!newSchedule[date]) newSchedule[date] = {};
         if (!newSchedule[date][mealType]) newSchedule[date][mealType] = [];
@@ -127,10 +175,8 @@ export default function App() {
 
   const removeFromSchedule = async (date, mealType, cardId) => {
     try {
-      // Remove from database
       await db.removeFromSchedule(date, mealType, cardId);
 
-      // Update local state
       const newSchedule = { ...schedule };
       newSchedule[date][mealType] = newSchedule[date][mealType].filter(
         (c) => c.id !== cardId
@@ -155,12 +201,10 @@ export default function App() {
 
   const updateScheduleCard = async (updatedCard, removedCategories = []) => {
     try {
-      // If categories were removed, remove from those meal types in schedule
       if (removedCategories.length > 0) {
         await db.removeCardFromAllSchedules(updatedCard.id, removedCategories);
       }
 
-      // Update local state
       const newSchedule = { ...schedule };
       Object.keys(newSchedule).forEach((date) => {
         Object.keys(newSchedule[date]).forEach((mealType) => {
@@ -190,10 +234,8 @@ export default function App() {
     if (!selectedCell) return;
 
     try {
-      // Add to database
       await db.addToSchedule(selectedCell.date, selectedCell.mealType, card.id);
 
-      // Update local state
       const newSchedule = { ...schedule };
       if (!newSchedule[selectedCell.date]) newSchedule[selectedCell.date] = {};
       if (!newSchedule[selectedCell.date][selectedCell.mealType])
@@ -216,6 +258,12 @@ export default function App() {
     }
   };
 
+  // Show auth screen if not logged in
+  if (!user) {
+    return <Auth />;
+  }
+
+  // Show loading
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 flex items-center justify-center">
@@ -230,6 +278,29 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50 p-6">
       <div className="max-w-7xl mx-auto">
+        {/* User Menu Bar */}
+        <div className="bg-white rounded-xl shadow-lg p-4 mb-6 flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center text-white font-bold">
+              {user.email?.[0]?.toUpperCase() || "U"}
+            </div>
+            <div>
+              <p className="font-semibold text-gray-800">
+                {user.user_metadata?.full_name || "User"}
+              </p>
+              <p className="text-sm text-gray-600">{user.email}</p>
+            </div>
+          </div>
+
+          <button
+            onClick={handleSignOut}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"
+          >
+            <LogOut size={18} />
+            Logout
+          </button>
+        </div>
+
         <Header
           startDate={startDate}
           endDate={endDate}

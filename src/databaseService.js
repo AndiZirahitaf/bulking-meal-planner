@@ -22,6 +22,10 @@ export const getAllIngredients = async () => {
 };
 
 export const addIngredient = async (name, calories, unit) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from("ingredient_database")
     .insert([
@@ -29,6 +33,7 @@ export const addIngredient = async (name, calories, unit) => {
         name: name.toLowerCase(),
         calories: parseFloat(calories),
         unit,
+        user_id: user.id,
       },
     ])
     .select();
@@ -59,6 +64,10 @@ export const getAllFoodCards = async () => {
 };
 
 export const addFoodCard = async (card) => {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
   const { data, error } = await supabase
     .from("food_cards")
     .insert([
@@ -67,6 +76,7 @@ export const addFoodCard = async (card) => {
         categories: card.categories,
         ingredients: card.ingredients,
         calories: card.calories,
+        user_id: user.id,
       },
     ])
     .select();
